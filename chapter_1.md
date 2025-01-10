@@ -3,6 +3,7 @@
 ![alt text](pic/ch1_1.png)
 
 **打开电脑，计算机执行的第一个指令是什么**
+操作系统执行第一步骤：把操作系统从磁盘载入内存由操作系统的引导扇区完成BOOTSECT.S
 ![alt text](pic/ch1_2.png)
 CS：段地址 IP：偏移地址
 BIOS的意思：Basic Input Output System
@@ -11,3 +12,62 @@ BIOS的意思：Basic Input Output System
 0磁道0扇区为操作系统引导扇区
 引导扇区代码：
 bootsect.s(.s汇编代码)
+BOOTSEG = 0x07c0
+INITSEG = 0x9000
+SETUPSEG = 0x9020
+```c
+将0x07c0移动到0x9000
+start:
+    // ax地址寄存器赋值0x07c0, ds数据段寄存器赋值ax
+    mov ax, #BOOTSEG mov ds, ax 
+    // ax地址寄存器赋值0x9000, 再赋值给es额外段寄存器
+    mov ax, #INITSEG mov es, ax
+    //设置 CX 为 256，表示接下来将执行 256 次操作
+    mov cx, #256
+    // 初始化段偏移si和di
+    sub si, si       sub di, di
+    // 重复移动,ds:si->es:di,执行256次
+    rep movw
+    // 跳转到INITSEG<<4+go
+    jmpi go, INITSEG
+```
+```c
+//CS 是代码段寄存器，表示当前代码所在的段地址。这里将 CS 的值加载到 AX，即获取当前段的地址。
+go: mov ax, cs      将当前代码段的段地址cs加载到 ax
+//这里的 DS 是数据段寄存器，它被设置为与当前代码段（CS）相同的段地址。通常，代码和数据是分开存放的，但在某些程序中，数据段也可能与代码段相同。
+mov ds, ax          将 AX 的值加载到 DS
+//同样，ES 是额外段寄存器，这里也被设置为 CS 的地址。这样，ES 和 DS 都指向了同一个段（当前代码段）。
+mov es, ax          将 AX 的值加载到 ES
+//SS 是堆栈段寄存器，设置为当前段地址。这意味着堆栈也会在当前代码段的地址范围内。
+mov ss, ax          将 AX 的值加载到 SS
+//SP是堆栈指针寄存器。这里将其设置为 0xFF00，这将确定堆栈的起始位置。堆栈通常从高地址向低地址增长，所以设置为 0xFF00 是一个常见的堆栈初始化方法。
+mov sp, #0xff00     将堆栈指针（SP）设置为 0xFF00
+load setup:         加载 setup 模块
+/*
+这些指令准备参数，用于后续的 BIOS 中断调用：
+dx 设置为 0x0000。dh磁头号，dl驱动器号
+cx 设置为 0x0002，可能表示传输的扇区数或其他相关值。，ch柱面号，cl开始扇区，
+bx 设置为 0x0200，是一个偏移值或参数，具体含义取决于上下文。
+ax 设置为 0x0200 + SETUPLEN，SETUPLEN 可能是一个常量，表示 setup 模块的长度。
+*/
+    mov dx, #0x0000     将 0x0000 存入 DX
+    mov cx, #0x0002     将 0x0002 存入 CX
+    mov bx, #0x0200     将 0x0200 存入 BX
+    // ah = 0x02-读磁盘 al = SETUPLEN=4=扇区数量
+    mov ax, #0x0200 + SETUPLEN ; 将 0x0200 加上 SETUPLEN 赋值给 AX
+//int 0x13 是 BIOS 中断，用于磁盘操作，通常用来读写扇区或控制硬盘。这里调用 int 0x13 可能是为了读取 setup 模块或加载启动代码。
+    int 0x13            调用 BIOS 中断 0x13（磁盘操作中断）
+    jnc ok_load_setup   如果无进位（无错误），跳转到 ok_load_setup 标签
+    mov dx, #0x0000     如果发生错误，重新初始化 DX 为 0
+    mov ax, #0x0000     将 AX 设置为 0，通常用于复位
+    int 0x13            再次调用 BIOS 中断，可能是为了复位或重试
+    j    load setup          重读 setup 模块
+```
+
+setup.s完成OS启动前设置
+```
+
+start: 
+    xor bh,bh int 0x10//取光标位置dx
+    mov ah, #0x88 int 0x15 mov [2] ax
+```
