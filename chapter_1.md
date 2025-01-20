@@ -102,6 +102,10 @@ jmpi 0, 8
 
 而在保护模式下，也是通过段寄存器和段偏移量寻址，但是此时段寄存器保存的数据意义不同了。
 此时的CS和SS寄存器后13位相当于GDT表中某个描述符的索引，即段选择子。第2位存储了TI值（0代表GDT，1代表LDT），第0、1位存储了当前的特权级（CPL）。
+**特权级**：
+0：内核态
+3：用户态
+当切换内核态和用户态时，系统通过改变 CS 的值来调整特权级别。
 ![段选择子](pic/ch1_3.png)
 首先CPU需要查找GDT在内存中位置，GDT的位置从GDTR寄存器中直接获取
 然后根据DS寄存器得到目标段描述符的物理地址
@@ -112,3 +116,35 @@ cs:ip的寻址模式：
 实模式下：cs左移4位+ip;
 保护模式下:根据cs查表+ip
 ![gdt表](pic/ch1_4.png)
+
+###进入main 函数
+```c
+void main(void){
+    mem_init();
+    trap_init();
+    blk_dev_init();
+    chr_dev_init();
+    tty_init();
+    time_init();
+    sched_init();
+    buffer_init();
+    hd_init();
+    floppy_init();
+    sti();
+}
+// start_mem可用内存的起始地址
+// end_mem可用内存的结尾地址
+void mem_init(log start_mem, long end_mem){
+    int i;
+    for(i=0; i<PAGING_PAGES;i++)
+        // 初始化一个mem_map数组
+        mem_map[i]=USED;
+    i=MAP_NR(start_mem);
+    end_mem -= start_mem;
+    end_mem>>=12;
+    while(end_mem -- >0)
+        mem_map[i++]=0;
+}
+```
+
+两件事情：操作系统读入内存、初始化
