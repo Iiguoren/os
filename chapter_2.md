@@ -159,16 +159,75 @@ TCB 切换
 
 ### 实验四
 TSS:任务状态段
-linux0.11由TSS转为kernel
 
+TSS： Linux0.11中真正完成进程切换是依靠任务状态段(Task State Segment，简称 TSS)的切换来完成的。具体的说，在设计“Intel 架构”(即 x86 系统结构)时，每个任务(进程或线程)都对应一个独立的 TSS，TSS 就是内存中的一个结构体，里面包含了几乎所有的 CPU 寄存器的映像。有一个任务寄存器(Task Register，简称 TR)指向当前进程对应的 TSS 结构体，所谓的 TSS 切换就将 CPU 中几乎所有的寄存器都复制到 TR 指向的那个 TSS 结构体中保存起来，同时找到一个目标 TSS，即要切换到的下一个进程对应的 TSS，将其中存放的寄存器映像“扣在” CPU上，就完成了执行现场的切换。
+
+TR类似于CS，在GDT表中索引到当前TSS描述符，找到TSS段
+只需要一条 ljmp 指令就可以完成TSS切换，以下的7个步骤都是CPU解释执行的结果
+![alt text](pic/ch2_10.png)
 通过改变选择子来切换线程
 ```c
 #define switch_to(n)
-    {struct {long a,b;}}
+    {struct {long a,b;} tmp;
     __asm__(
     "movw %%dx, %1\n\t"
     "ljmp %0\n\t"
+    //ljmp需要传递64字节，包括tmp.a32位，tmp.b32位
     ::"m"(*&__tmp.a),
     "m"(*__tmp.b),
     "d"(__TSS(n)))
+    //d 表示将数据传入指定寄存器（在这个例子中是 %%dx 寄存器）。
+    }
 ```
+![alt text](pic/ch2_9.png)
+%% 代表 转义字符，表示 真正的 dx 寄存器。
+这个 双百分号 (%%) 语法 仅在宏定义或字符串拼接 时使用，避免与 C 代码冲突。
+
+%0、%1、%2 … 代表汇编指令中引用的 操作数（由 : 后的参数提供）。
+
+
+### 操作系统之“树”
+ 
+### 调度
+常见调度算法：
+**FCFS**:
+先来先服务
+![alt text](pic/ch2_11.png)
+如果将P2,P3交换，如上图中下面的顺序操作，平均周转时间(10+13+42+49+61)/5=35ms,平均周转时间减小
+**SJF**:
+短作业优先
+![alt text](pic/ch2_12.png)
+短作业优先的平均周转时间是**最小**的。
+
+考虑响应时间：
+类似word更关心响应时间
+**RR**:
+轮转调度
+![alt text](pic/ch2_13.png)
+轮转调度保证每个任务都能尽快被响应
+counter为时间片有两个作用：
+1. 决定每个任务执行的时间
+2. counter越大，调度优先级越高
+调度程序：
+```c
+void Schedule(void)
+{
+    while(1){c=-1; next=0; i=NR_TASKS;
+    // 指针赋予数组末尾
+    p=&task[NR_TASKS];
+    // 如果状态为就绪，且找到counter最大的task
+    while(--i){if(*p->state==TASK_RUNNING&&(*p)->counter>c)
+        c=(*p)->counter, next=i;}
+    if(c) break; //找到了最大的counter
+    // 如果counter为0或者阻塞
+    for(p=&LAST_TASK;p>&FIRST_TASK;--p)
+    // 动态调整：所有counter/2+priority，让就绪counter恢复为初值，阻塞态counter优先级增加
+        (*p)->counter=((*p)->counter>>1)
+            +(*p)->priority;
+    }
+    switch_to(next);
+}
+```
+* 对多task的counter做了动态调整，阻塞过的task在恢复就绪态后优先级增加
+* 阻塞过的task他的counter会变大，最大小于2priority,保证了counter的界
+* 每个进程只需要维护一个变量counter就可以

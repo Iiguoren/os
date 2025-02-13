@@ -88,7 +88,7 @@ int指令使CS中的CPL改为0，进入内核
 
 ![alt text](pic/ch1_9.png)
 ```c
-#define syscall3(type, nmae, atype, a, btype b, ctype c)\
+#define syscall3(type, name, atype, a, btype b, ctype c)\
 type name(atype a, btype b, ctype c)\
 {
     long _res;\
