@@ -307,4 +307,3 @@ void mount_root(void)
 }
 ```
 ![alt text](pic/ch4_18.png)
-获得超级块，略过引导块的2和
