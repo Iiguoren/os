@@ -22,6 +22,8 @@ INITSEG = 0x9000
 SETUPSEG = 0x9020
 将0x07c0移动到0x9000
 */
+// 告诉链接程序从start开始
+entry start
 start:
     // ax地址寄存器赋值0x07c0, ds数据段寄存器赋值ax
     mov ax, #BOOTSEG mov ds, ax 
@@ -31,14 +33,14 @@ start:
     mov cx, #256
     // 初始化段偏移si和di
     sub si, si       sub di, di
-    // 重复移动,ds:si->es:di,执行256次，将0x7c000-0x7c200->0x90000-0x90200
+    // 重复移动,ds:si->es:di,执行256次，每次两个字节，将0x7c000-0x7c200->0x90000-0x90200
     rep movw
-    // 跳转到INITSEG<<4+go
+    // 跳转到INITSEG<<4+go，这里go是标号
     jmpi go, INITSEG
 ```
 调用setup模块：
 ```c
-//CS 是代码段寄存器，表示当前代码所在的段地址。这里将 CS 的值加载到 AX，即获取当前段的地址。
+//CS 是代码段寄存器，表示当前代码所在的段地址。这里将 CS 的值加载到 AX，ax为累加寄存器也可通用，即获取当前段的地址。
 go: mov ax, cs      将当前代码段的段地址cs:0x9000加载到 ax
 //这里的 DS 是数据段寄存器，它被设置为与当前代码段（CS）相同的段地址。通常，代码和数据是分开存放的，但在某些程序中，数据段也可能与代码段相同。
 mov ds, ax          将 AX 的值加载到 DS
